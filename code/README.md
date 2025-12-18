@@ -194,12 +194,6 @@ roslaunch trajectory_generator test_control.launch
 
 <img src="./assets/image-20251113202128649.png" width="400">
 
-#### 步骤 4：测试移动
-
-点击 Rviz 中的 `3D Nav Goal`，在界面中的白色地板上进行拖动。倘若无人机能够沿着 z 轴向上移动 6m，则表明你的修改成功。倘若飞机不能向上移动则表明修改失败。
-
-<img src="./assets/image-20251113202237918.png" width="400">
-
 
 **提交方式** ：请在报告中稍微介绍一下任务一的补全思路，注意简洁清晰，切勿放大段代码。
 
