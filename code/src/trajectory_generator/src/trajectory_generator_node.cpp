@@ -429,7 +429,7 @@ VectorXd timeAllocation(MatrixXd Path) {
         time(i) =2.0 * t + (dist - 2.0 * d) / _Vel;
     }
  }
-  return 2*time;
+  return 0.9 * time;
 }
 
 void visTrajectory(MatrixXd polyCoeff, VectorXd time) {
@@ -623,6 +623,8 @@ int main(int argc, char **argv) {
   nh.param("replanning/thresh_replan", replan_thresh, -1.0);
   nh.param("replanning/thresh_no_replan", no_replan_thresh, -1.0);
   nh.param("planning/demox", demox, 0);
+
+ 
 
   _poly_num1D = 2 * _dev_order;
   cracked = false;
