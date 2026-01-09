@@ -1,0 +1,6 @@
+variant_G8_z06_l15
+variant_G8_z06_l20
+variant_G8_z03_l15
+variant_G8_z03_l20
+variant_G8_z00_l15
+variant_G8_z00_l20

@@ -1,0 +1,4 @@
+variant_G12_d4: FAILED (missing data)
+variant_G12_d5: FAILED (missing data)
+variant_G12_d4_smooth: FAILED (missing data)
+variant_G12_d5_smooth: FAILED (missing data)

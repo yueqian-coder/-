@@ -1,0 +1,5 @@
+variant_G13_infl1_base
+variant_G13_infl1_los
+variant_G13_infl1_smooth
+variant_G13_infl1_fast
+variant_G13_infl1_z08

@@ -1,0 +1,9 @@
+variant_G7_p120_s05
+variant_G7_p120_s10
+variant_G7_p120_s20
+variant_G7_p150_s05
+variant_G7_p150_s10
+variant_G7_p150_s20
+variant_G7_p200_s05
+variant_G7_p200_s10
+variant_G7_p200_s20

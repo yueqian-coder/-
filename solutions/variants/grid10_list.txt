@@ -1,0 +1,8 @@
+variant_G10_base_p100_s05
+variant_G10_base_p100_s10
+variant_G10_base_p150_s05
+variant_G10_base_p150_s10
+variant_G10_fast_p100_s05
+variant_G10_fast_p100_s10
+variant_G10_fast_p150_s05
+variant_G10_fast_p150_s10

@@ -1,0 +1,13 @@
+variant_G4_s2_p090
+variant_G4_s2_p100
+variant_G4_s2_p110
+variant_G4_s3_p090
+variant_G4_s3_p100
+variant_G4_s3_p110
+variant_G4_lazy_1
+variant_G4_lazy_2
+variant_G4_lazy_3
+variant_G4_weighted_1
+variant_G4_weighted_2
+variant_G4_theta_zrewire_1
+variant_G4_theta_zrewire_2

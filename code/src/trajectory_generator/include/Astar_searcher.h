@@ -23,11 +23,26 @@ class Astarpath
 		double resolution, inv_resolution;
 		double gl_xl, gl_yl, gl_zl;
 		double gl_xu, gl_yu, gl_zu;
+		double heuristic_weight_;
+		double ara_init_weight_;
+		double ara_step_;
+		double los_step_;
+		double z_penalty_;
+		double theta_rewire_z_penalty_;
+		int ara_max_iter_;
+		bool use_theta_star_;
+		bool use_lazy_theta_;
+		bool use_ara_star_;
+		bool use_raw_occ_;
+		int occ_inflate_level_;
+		bool cache_path_valid_;
+		std::vector<Eigen::Vector3d> cached_path_;
 
 		MappingNodePtr terminatePtr;
 		std::multimap<double, MappingNodePtr> Openset;
 
 		double getHeu(MappingNodePtr node1, MappingNodePtr node2);
+		bool AstarSearchSingle(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt);
 		void AstarGetSucc(MappingNodePtr currentPtr, std::vector<MappingNodePtr> & neighborPtrSets, std::vector<double> & edgeCostSets);		
 		Eigen::Vector3d gridIndex2coord(const Eigen::Vector3i & index);
 		Eigen::Vector3i coord2gridIndex(const Eigen::Vector3d & pt);
@@ -40,9 +55,30 @@ class Astarpath
 		
 
 	public:
-		Astarpath(){};
+		Astarpath()
+			: heuristic_weight_(1.0)
+			, ara_init_weight_(1.6)
+			, ara_step_(0.2)
+			, los_step_(0.0)
+			, z_penalty_(0.2)
+			, theta_rewire_z_penalty_(0.0)
+			, ara_max_iter_(3)
+			, use_theta_star_(false)
+			, use_lazy_theta_(false)
+			, use_ara_star_(false)
+			, use_raw_occ_(false)
+			, occ_inflate_level_(2)
+			, cache_path_valid_(false) {};
 		~Astarpath(){};
 		bool AstarSearch(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt);
+		void setHeuristicWeight(double weight);
+		void setAraParams(bool enable, double init_weight, double step, int max_iter);
+		void setThetaOptions(bool enable_theta, bool enable_lazy);
+		void setLineOfSightStep(double step);
+		void setZPenalty(double penalty);
+		void setThetaRewireZPenalty(double penalty);
+		void setUseRawOcc(bool enable);
+		void setOccInflateLevel(int level);
 		void resetGrid(MappingNodePtr ptr);
 		void resetUsedGrids();
 		bool is_occupy(const Eigen::Vector3i & index);

@@ -1,0 +1,12 @@
+variant_G5_v100_a090_t105
+variant_G5_v100_a090_t110
+variant_G5_v100_a090_t114
+variant_G5_v100_a100_t105
+variant_G5_v100_a100_t110
+variant_G5_v100_a100_t114
+variant_G5_v110_a090_t105
+variant_G5_v110_a090_t110
+variant_G5_v110_a090_t114
+variant_G5_v110_a100_t105
+variant_G5_v110_a100_t110
+variant_G5_v110_a100_t114

@@ -1,0 +1,4 @@
+variant_G12_d4
+variant_G12_d5
+variant_G12_d4_smooth
+variant_G12_d5_smooth

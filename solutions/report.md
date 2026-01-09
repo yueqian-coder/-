@@ -83,15 +83,17 @@ The ROS package quadrotor_df generates this CSV using C++ and Eigen.
 ## Evaluation Results (demo.launch)
 
 Tuning used:
-- timeAllocation scale: 0.9x (trajectory_generator_node.cpp)
+- Theta*-style parent rewire with line-of-sight checks in A* (Astar_searcher.cpp)
+- shortcut path with line-of-sight checks (trajectory_generator_node.cpp)
+- timeAllocation scale: 1.2x (trajectory_generator_node.cpp)
 - position gains: kx = (20, 20, 16), kv = (12, 12, 10) (so3_control_nodelet.cpp)
 
 Latest run (solutions/result.txt):
-- RMSE: 0.07311629094145068
-- Total time: 31.10936713218689
-- Path length: 34.634945379919564
+- RMSE: 0.021383851990198346
+- Total time: 23.179882049560547
+- Path length: 28.997778154811613
 - Collision: 0
-- Overall score: 27.772120690711425
+- Overall score: 14.7123024389141
 
 Note: the map generator is randomized, so scores can vary between runs
-(best observed with the same settings was ~21.99).
+(best observed with the same settings was ~14.71).

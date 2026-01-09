@@ -1,0 +1,12 @@
+variant_G6_v125_a114_g88
+variant_G6_v125_a114_g84
+variant_G6_v125_a114_g80
+variant_G6_v125_a125_g88
+variant_G6_v125_a125_g84
+variant_G6_v125_a125_g80
+variant_G6_v135_a114_g88
+variant_G6_v135_a114_g84
+variant_G6_v135_a114_g80
+variant_G6_v135_a125_g88
+variant_G6_v135_a125_g84
+variant_G6_v135_a125_g80

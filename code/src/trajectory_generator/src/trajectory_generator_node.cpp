@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <cctype>
 #include <fstream>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <iostream>
+#include <limits>
 #include <math.h>
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
@@ -36,6 +38,18 @@ double _x_size, _y_size, _z_size;
 Vector3d _map_lower, _map_upper;
 int _max_x_id, _max_y_id, _max_z_id;
 int demox = 0;
+double _los_step;
+double _time_vel_scale = 1.25;
+double _time_acc_scale = 1.15;
+double _time_global_scale = 1.0;
+double _path_simplify_scale = 1.0;
+int _shortcut_passes = 1;
+bool _use_los_shortest = false;
+bool _use_raw_occ = false;
+int _occ_inflate_level = 2;
+double _straight_time_scale = 1.0;
+double _turn_time_scale = 1.0;
+double _turn_angle_deg = 90.0;
 ros::Time start_record_time;
 ros::Time finish_record_time;
 
@@ -77,6 +91,114 @@ int time_Count;
 int target_Count;
 ros::Timer _record_timer_;
 
+static double clampDouble(double value, double low, double high) {
+  return std::min(high, std::max(low, value));
+}
+
+static int clampInt(int value, int low, int high) {
+  return std::min(high, std::max(low, value));
+}
+
+static std::string trimCopy(const std::string &text) {
+  size_t first = text.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos)
+    return std::string();
+  size_t last = text.find_last_not_of(" \t\r\n");
+  return text.substr(first, last - first + 1);
+}
+
+static bool parseKeyValue(const std::string &line, std::string *key,
+                          std::string *value) {
+  size_t eq = line.find('=');
+  if (eq == std::string::npos)
+    return false;
+  *key = trimCopy(line.substr(0, eq));
+  *value = trimCopy(line.substr(eq + 1));
+  return !key->empty();
+}
+
+static void applyOverrides(const std::string &path, std::string &search_mode,
+                           double &heuristic_weight, double &ara_init_weight,
+                           double &ara_step, int &ara_max_iter,
+                           double &z_penalty, double &theta_rewire_z_penalty) {
+  std::ifstream fin(path.c_str());
+  if (!fin.is_open())
+    return;
+
+  std::string line;
+  while (std::getline(fin, line)) {
+    size_t hash = line.find('#');
+    if (hash != std::string::npos)
+      line = line.substr(0, hash);
+    line = trimCopy(line);
+    if (line.empty())
+      continue;
+
+    std::string key;
+    std::string value;
+    if (!parseKeyValue(line, &key, &value))
+      continue;
+    std::transform(key.begin(), key.end(), key.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    try {
+      if (key == "search_mode") {
+        search_mode = value;
+      } else if (key == "heuristic_weight") {
+        heuristic_weight = std::stod(value);
+      } else if (key == "ara_init_weight") {
+        ara_init_weight = std::stod(value);
+      } else if (key == "ara_step") {
+        ara_step = std::stod(value);
+      } else if (key == "ara_max_iter") {
+        ara_max_iter = std::stoi(value);
+      } else if (key == "z_penalty") {
+        z_penalty = std::stod(value);
+      } else if (key == "theta_rewire_z_penalty") {
+        theta_rewire_z_penalty = std::stod(value);
+      } else if (key == "time_vel_scale") {
+        _time_vel_scale = clampDouble(std::stod(value), 0.5, 2.0);
+      } else if (key == "time_acc_scale") {
+        _time_acc_scale = clampDouble(std::stod(value), 0.5, 2.0);
+      } else if (key == "time_global_scale") {
+        _time_global_scale = clampDouble(std::stod(value), 0.5, 1.5);
+      } else if (key == "path_simplify_scale") {
+        _path_simplify_scale = clampDouble(std::stod(value), 0.5, 2.0);
+      } else if (key == "shortcut_passes") {
+        _shortcut_passes = clampInt(std::stoi(value), 0, 20);
+      } else if (key == "use_los_shortest") {
+        _use_los_shortest = (std::stoi(value) != 0);
+      } else if (key == "use_raw_occ") {
+        _use_raw_occ = (std::stoi(value) != 0);
+      } else if (key == "occ_inflate_level") {
+        _occ_inflate_level = clampInt(std::stoi(value), 0, 2);
+      } else if (key == "straight_time_scale") {
+        _straight_time_scale = clampDouble(std::stod(value), 0.5, 1.5);
+      } else if (key == "turn_time_scale") {
+        _turn_time_scale = clampDouble(std::stod(value), 0.5, 1.5);
+      } else if (key == "turn_angle_deg") {
+        _turn_angle_deg = clampDouble(std::stod(value), 5.0, 175.0);
+      } else if (key == "los_step") {
+        _los_step = clampDouble(std::stod(value), 0.0, 1.0);
+      } else if (key == "dev_order") {
+        _dev_order = clampInt(std::stoi(value), 3, 7);
+      } else if (key == "min_order") {
+        _min_order = clampInt(std::stoi(value), 3, 7);
+      } else if (key == "path_resolution") {
+        _path_resolution = clampDouble(std::stod(value), 0.05, 0.5);
+      } else if (key == "replan_thresh") {
+        replan_thresh = clampDouble(std::stod(value), 0.5, 5.0);
+      } else if (key == "no_replan_thresh") {
+        no_replan_thresh = clampDouble(std::stod(value), 0.5, 5.0);
+      } else if (key == "vis_traj_width") {
+        _vis_traj_width = clampDouble(std::stod(value), 0.03, 0.2);
+      }
+    } catch (...) {
+      continue;
+    }
+  }
+}
+
 // declare
 void changeState(STATE new_state, string pos_call);
 void printState();
@@ -93,6 +215,9 @@ bool trajGeneration();
 VectorXd timeAllocation(MatrixXd Path);
 Vector3d getPos(double t_cur);
 Vector3d getVel(double t_cur);
+bool lineOfSight(const Vector3d &a, const Vector3d &b);
+vector<Vector3d> shortcutPath(const vector<Vector3d> &path);
+vector<Vector3d> shortestPathByLOS(const vector<Vector3d> &path);
 
 // change the state to the new state
 void changeState(STATE new_state, string pos_call) {
@@ -261,6 +386,9 @@ bool trajGeneration() {
     return false;
     }
       auto grid_path = _astar_path_finder->getPath();
+      for (int pass = 0; pass < _shortcut_passes; ++pass) {
+        grid_path = shortcutPath(grid_path);
+      }
   // Reset map for next call
       _astar_path_finder->resetUsedGrids();
   MatrixXd path(int(grid_path.size()), 3);
@@ -269,7 +397,14 @@ bool trajGeneration() {
   }
   visPathA(path);
 
-  grid_path = _astar_path_finder->pathSimplify(grid_path, _path_resolution);
+  double simplify_resolution = _path_resolution * _path_simplify_scale;
+  grid_path = _astar_path_finder->pathSimplify(grid_path, simplify_resolution);
+  if (_use_los_shortest) {
+    grid_path = shortestPathByLOS(grid_path);
+  }
+  for (int pass = 0; pass < _shortcut_passes; ++pass) {
+    grid_path = shortcutPath(grid_path);
+  }
   // grid_path = _astar_path_finder->getPath();
   path=MatrixXd::Zero(int(grid_path.size()), 3);
   for (int k = 0; k < int(grid_path.size()); k++) {
@@ -296,7 +431,7 @@ void issafe(const ros::TimerEvent &e){
       ROS_WARN("now place is in obstacle, the drone has cracked!!!");
       cracked = true;
       if(!dataFiles.is_open()){
-        dataFiles.open("/home/stuwork/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/issafe.txt", std::ios::out|std::ios::trunc);
+        dataFiles.open("/home/user/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/issafe.txt", std::ios::out|std::ios::trunc);
       }
       dataFiles << 1;
       dataFiles.flush();
@@ -411,25 +546,116 @@ void trajPublish(MatrixXd polyCoeff, VectorXd time) {
 //To_Do
 VectorXd timeAllocation(MatrixXd Path) {
   VectorXd time(Path.rows() - 1);
-  MatrixXd piece;
+  Eigen::Vector3d piece;
   double dist;
-  const double t = _Vel / _Acc;
-  const double d = 0.5 * _Acc * t * t;
-  //使用梯形曲线分配时间
+  const double vel = std::max(0.1, _Vel * _time_vel_scale);
+  const double acc = std::max(0.1, _Acc * _time_acc_scale);
+  const double t = vel / acc;
+  const double d = 0.5 * acc * t * t;
+  const double global_scale = std::max(0.1, _time_global_scale);
+  //??????????????????????????????
  for(int i=0;i<int(time.size());i++)
  {
-   piece= Path.row(i+1)-Path.row(i);
+   piece = (Path.row(i + 1) - Path.row(i)).transpose();
    dist = piece.norm();
        if (dist < d + d)
     {
-        time(i)= 2.0 * sqrt(dist / _Acc);
+        time(i)= 2.0 * sqrt(dist / acc);
     }
     else
     {
-        time(i) =2.0 * t + (dist - 2.0 * d) / _Vel;
+        time(i) =2.0 * t + (dist - 2.0 * d) / vel;
     }
- }
-  return 0.9 * time;
+    if (i > 0) {
+      Eigen::Vector3d prev = (Path.row(i) - Path.row(i - 1)).transpose();
+      if (prev.norm() > 1e-6 && dist > 1e-6) {
+        double cosang = prev.dot(piece) / (prev.norm() * dist);
+        cosang = std::max(-1.0, std::min(1.0, cosang));
+        double angle = acos(cosang);
+        double angle_deg = angle * 180.0 / M_PI;
+        double scale = (angle_deg < _turn_angle_deg) ? _straight_time_scale
+                                                     : _turn_time_scale;
+        time(i) *= scale;
+      }
+    }
+    time(i) = std::max(time(i), 0.01);
+  }
+  return global_scale * time;
+}
+
+bool lineOfSight(const Vector3d &a, const Vector3d &b) {
+  Vector3d diff = b - a;
+  double dist = diff.norm();
+  if (dist < 1e-6)
+    return true;
+  double step = _los_step;
+  if (step <= 0.0)
+    step = std::max(0.05, _resolution * 0.5);
+  Vector3d dir = diff / dist;
+  int steps = static_cast<int>(dist / step);
+  Vector3d p = a;
+  for (int i = 0; i <= steps; ++i) {
+    if (_astar_path_finder->is_occupy(_astar_path_finder->c2i(p)))
+      return false;
+    p += dir * step;
+  }
+  return true;
+}
+
+vector<Vector3d> shortestPathByLOS(const vector<Vector3d> &path) {
+  if (path.size() <= 2)
+    return path;
+
+  const size_t n = path.size();
+  std::vector<double> dist(n, std::numeric_limits<double>::infinity());
+  std::vector<int> parent(n, -1);
+  dist[0] = 0.0;
+
+  for (size_t i = 0; i < n; ++i) {
+    if (dist[i] == std::numeric_limits<double>::infinity())
+      continue;
+    for (size_t j = i + 1; j < n; ++j) {
+      if (!lineOfSight(path[i], path[j]))
+        continue;
+      const double d = dist[i] + (path[j] - path[i]).norm();
+      if (d < dist[j]) {
+        dist[j] = d;
+        parent[j] = static_cast<int>(i);
+      }
+    }
+  }
+
+  if (parent[n - 1] < 0)
+    return path;
+
+  std::vector<Vector3d> result;
+  for (int cur = static_cast<int>(n - 1); cur >= 0; cur = parent[cur]) {
+    result.push_back(path[cur]);
+    if (cur == 0)
+      break;
+  }
+  if (result.back() != path[0])
+    return path;
+  std::reverse(result.begin(), result.end());
+  return result;
+}
+
+vector<Vector3d> shortcutPath(const vector<Vector3d> &path) {
+  if (path.size() <= 2)
+    return path;
+  vector<Vector3d> result;
+  size_t i = 0;
+  result.push_back(path.front());
+  while (i < path.size() - 1) {
+    size_t next = path.size() - 1;
+    for (; next > i + 1; --next) {
+      if (lineOfSight(path[i], path[next]))
+        break;
+    }
+    result.push_back(path[next]);
+    i = next;
+  }
+  return result;
 }
 
 void visTrajectory(MatrixXd polyCoeff, VectorXd time) {
@@ -609,6 +835,13 @@ Vector3d getVel(double t_cur) {
 int main(int argc, char **argv) {
   ros::init(argc, argv, "traj_node");
   ros::NodeHandle nh("~");
+  std::string search_mode;
+  double heuristic_weight = 1.0;
+  double ara_init_weight = 1.6;
+  double ara_step = 0.2;
+  int ara_max_iter = 3;
+  double z_penalty = 0.2;
+  double theta_rewire_z_penalty = 0.0;
 
   nh.param("planning/vel", _Vel, 1.0);
   nh.param("planning/acc", _Acc, 1.0);
@@ -623,6 +856,18 @@ int main(int argc, char **argv) {
   nh.param("replanning/thresh_replan", replan_thresh, -1.0);
   nh.param("replanning/thresh_no_replan", no_replan_thresh, -1.0);
   nh.param("planning/demox", demox, 0);
+  nh.param("planning/search_mode", search_mode, std::string("theta_star"));
+  nh.param("planning/heuristic_weight", heuristic_weight, 1.0);
+  nh.param("planning/ara_init_weight", ara_init_weight, 1.6);
+  nh.param("planning/ara_step", ara_step, 0.2);
+  nh.param("planning/ara_max_iter", ara_max_iter, 3);
+  nh.param("planning/los_step", _los_step, 0.0);
+  nh.param("planning/z_penalty", z_penalty, 0.2);
+  nh.param("planning/theta_rewire_z_penalty", theta_rewire_z_penalty, 0.0);
+
+  applyOverrides("/home/user/MRPC-2025-homework/solutions/variant_override.txt",
+                 search_mode, heuristic_weight, ara_init_weight, ara_step,
+                 ara_max_iter, z_penalty, theta_rewire_z_penalty);
 
  
 
@@ -632,7 +877,7 @@ int main(int argc, char **argv) {
   time_Count=0;
   target_Count = 0;
   
-  std::string issafe_path = "/home/stuwork/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/issafe.txt";
+  std::string issafe_path = "/home/user/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/issafe.txt";
   std::ofstream clear_file(issafe_path, std::ios::out | std::ios::trunc);
   clear_file.close();
 
@@ -658,6 +903,41 @@ int main(int argc, char **argv) {
   _max_z_id = (int)(_z_size * _inv_resolution);
 
   _astar_path_finder = new Astarpath();
+  std::string mode = search_mode;
+  std::transform(mode.begin(), mode.end(), mode.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  bool use_theta = false;
+  bool use_lazy = false;
+  bool use_ara = false;
+  if (mode == "theta_star" || mode == "theta") {
+    use_theta = true;
+  } else if (mode == "lazy_theta_star" || mode == "lazy_theta") {
+    use_theta = true;
+    use_lazy = true;
+  } else if (mode == "ara_star" || mode == "ara") {
+    use_ara = true;
+  } else if (mode == "weighted_astar" || mode == "weighted") {
+    // weighted A*
+  } else if (mode != "astar") {
+    ROS_WARN("[planner] unknown search_mode '%s', fallback to astar",
+             mode.c_str());
+  }
+  if (use_ara) {
+    use_theta = false;
+    use_lazy = false;
+  }
+  _astar_path_finder->setThetaOptions(use_theta, use_lazy);
+  _astar_path_finder->setHeuristicWeight(heuristic_weight);
+  _astar_path_finder->setAraParams(use_ara, ara_init_weight, ara_step,
+                                   ara_max_iter);
+  _astar_path_finder->setLineOfSightStep(_los_step);
+  _astar_path_finder->setZPenalty(z_penalty);
+  _astar_path_finder->setThetaRewireZPenalty(theta_rewire_z_penalty);
+  _astar_path_finder->setUseRawOcc(_use_raw_occ);
+  _astar_path_finder->setOccInflateLevel(_occ_inflate_level);
+  ROS_INFO("[planner] mode=%s theta=%d lazy=%d ara=%d weight=%.3f z_pen=%.2f theta_z=%.2f",
+           mode.c_str(), use_theta, use_lazy, use_ara, heuristic_weight,
+           z_penalty, theta_rewire_z_penalty);
   _astar_path_finder->begin_grid_map(_resolution, _map_lower, _map_upper,
                                   _max_x_id, _max_y_id, _max_z_id);
 

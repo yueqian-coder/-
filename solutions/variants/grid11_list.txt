@@ -1,0 +1,6 @@
+variant_G11_raw_base
+variant_G11_raw_los
+variant_G11_raw_smooth
+variant_G11_raw_los_smooth
+variant_G11_raw_fast1
+variant_G11_raw_fast2

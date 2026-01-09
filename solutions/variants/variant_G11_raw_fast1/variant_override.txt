@@ -1,0 +1,16 @@
+# grid11 raw occ
+search_mode=theta_star
+heuristic_weight=1.5
+ara_init_weight=1.6
+ara_step=0.2
+ara_max_iter=3
+z_penalty=0.1
+theta_rewire_z_penalty=0.0
+time_vel_scale=1.25
+time_acc_scale=1.15
+time_global_scale=0.88
+path_simplify_scale=1.0
+shortcut_passes=1
+los_step=0.1
+use_los_shortest=1
+use_raw_occ=1

@@ -43,6 +43,43 @@ void Astarpath::begin_grid_map(double _resolution, Vector3d global_xyz_l,
   }
 }
 
+void Astarpath::setHeuristicWeight(double weight) {
+  heuristic_weight_ = max(1.0, weight);
+}
+
+void Astarpath::setAraParams(bool enable, double init_weight, double step,
+                             int max_iter) {
+  use_ara_star_ = enable;
+  ara_init_weight_ = max(1.0, init_weight);
+  ara_step_ = max(0.0, step);
+  ara_max_iter_ = max(1, max_iter);
+}
+
+void Astarpath::setThetaOptions(bool enable_theta, bool enable_lazy) {
+  use_theta_star_ = enable_theta;
+  use_lazy_theta_ = enable_lazy;
+}
+
+void Astarpath::setLineOfSightStep(double step) {
+  los_step_ = step;
+}
+
+void Astarpath::setZPenalty(double penalty) {
+  z_penalty_ = max(0.0, penalty);
+}
+
+void Astarpath::setThetaRewireZPenalty(double penalty) {
+  theta_rewire_z_penalty_ = max(0.0, penalty);
+}
+
+void Astarpath::setUseRawOcc(bool enable) {
+  use_raw_occ_ = enable;
+}
+
+void Astarpath::setOccInflateLevel(int level) {
+  occ_inflate_level_ = std::min(2, std::max(0, level));
+}
+
 void Astarpath::resetGrid(MappingNodePtr ptr) {
   ptr->id = 0;
   ptr->Father = NULL;
@@ -69,19 +106,27 @@ void Astarpath::set_barrier(const double coord_x, const double coord_y,
 
   data_raw[idx_x * GLYZ_SIZE + idx_y * GRID_Z_SIZE + idx_z] = 1;
 
-  if (idx_x == 0 || idx_y == 0 || idx_z == GRID_Z_SIZE || idx_x == GRID_X_SIZE ||
-      idx_y == GRID_Y_SIZE)
-    data[idx_x * GLYZ_SIZE + idx_y * GRID_Z_SIZE + idx_z] = 1;
-  else {
-    data[idx_x * GLYZ_SIZE + idx_y * GRID_Z_SIZE + idx_z] = 1;
-    data[(idx_x + 1) * GLYZ_SIZE + (idx_y + 1) * GRID_Z_SIZE + idx_z] = 1;
-    data[(idx_x + 1) * GLYZ_SIZE + (idx_y - 1) * GRID_Z_SIZE + idx_z] = 1;
-    data[(idx_x - 1) * GLYZ_SIZE + (idx_y + 1) * GRID_Z_SIZE + idx_z] = 1;
-    data[(idx_x - 1) * GLYZ_SIZE + (idx_y - 1) * GRID_Z_SIZE + idx_z] = 1;
-    data[(idx_x)*GLYZ_SIZE + (idx_y + 1) * GRID_Z_SIZE + idx_z] = 1;
-    data[(idx_x)*GLYZ_SIZE + (idx_y - 1) * GRID_Z_SIZE + idx_z] = 1;
-    data[(idx_x + 1) * GLYZ_SIZE + (idx_y)*GRID_Z_SIZE + idx_z] = 1;
-    data[(idx_x - 1) * GLYZ_SIZE + (idx_y)*GRID_Z_SIZE + idx_z] = 1;
+  data[idx_x * GLYZ_SIZE + idx_y * GRID_Z_SIZE + idx_z] = 1;
+
+  if (occ_inflate_level_ <= 0)
+    return;
+
+  auto mark = [&](int x, int y) {
+    if (x < 0 || x >= GRID_X_SIZE || y < 0 || y >= GRID_Y_SIZE)
+      return;
+    data[x * GLYZ_SIZE + y * GRID_Z_SIZE + idx_z] = 1;
+  };
+
+  mark(idx_x + 1, idx_y);
+  mark(idx_x - 1, idx_y);
+  mark(idx_x, idx_y + 1);
+  mark(idx_x, idx_y - 1);
+
+  if (occ_inflate_level_ >= 2) {
+    mark(idx_x + 1, idx_y + 1);
+    mark(idx_x + 1, idx_y - 1);
+    mark(idx_x - 1, idx_y + 1);
+    mark(idx_x - 1, idx_y - 1);
   }
 }
 
@@ -156,16 +201,24 @@ inline bool Astarpath::isFree(const Eigen::Vector3i &index) const {
 
 inline bool Astarpath::isOccupied(const int &idx_x, const int &idx_y,
                                         const int &idx_z) const {
-  return (idx_x >= 0 && idx_x < GRID_X_SIZE && idx_y >= 0 && idx_y < GRID_Y_SIZE &&
-          idx_z >= 0 && idx_z < GRID_Z_SIZE &&
-          (data[idx_x * GLYZ_SIZE + idx_y * GRID_Z_SIZE + idx_z] == 1));
+  if (idx_x < 0 || idx_x >= GRID_X_SIZE || idx_y < 0 || idx_y >= GRID_Y_SIZE ||
+      idx_z < 0 || idx_z >= GRID_Z_SIZE)
+    return false;
+  const int idx = idx_x * GLYZ_SIZE + idx_y * GRID_Z_SIZE + idx_z;
+  if (use_raw_occ_)
+    return (data_raw[idx] == 1);
+  return (data[idx] == 1);
 }
 
 inline bool Astarpath::isFree(const int &idx_x, const int &idx_y,
                                     const int &idx_z) const {
-  return (idx_x >= 0 && idx_x < GRID_X_SIZE && idx_y >= 0 && idx_y < GRID_Y_SIZE &&
-          idx_z >= 0 && idx_z < GRID_Z_SIZE &&
-          (data[idx_x * GLYZ_SIZE + idx_y * GRID_Z_SIZE + idx_z] < 1));
+  if (idx_x < 0 || idx_x >= GRID_X_SIZE || idx_y < 0 || idx_y >= GRID_Y_SIZE ||
+      idx_z < 0 || idx_z >= GRID_Z_SIZE)
+    return false;
+  const int idx = idx_x * GLYZ_SIZE + idx_y * GRID_Z_SIZE + idx_z;
+  if (use_raw_occ_)
+    return (data_raw[idx] < 1);
+  return (data[idx] < 1);
 }
 
 inline void Astarpath::AstarGetSucc(MappingNodePtr currentPtr,
@@ -194,7 +247,7 @@ inline void Astarpath::AstarGetSucc(MappingNodePtr currentPtr,
         neighborPtrSets.push_back(
             Map_Node[Idx_neighbor(0)][Idx_neighbor(1)][Idx_neighbor(2)]);
         double base_cost = sqrt(dx * dx + dy * dy + dz * dz);
-        double z_penalty = 0.2 * abs(dz);
+        double z_penalty = z_penalty_ * abs(dz);
         edgeCostSets.push_back(base_cost + z_penalty);
       }
     }
@@ -203,43 +256,116 @@ inline void Astarpath::AstarGetSucc(MappingNodePtr currentPtr,
 
 double Astarpath::getHeu(MappingNodePtr node1, MappingNodePtr node2) {
   
-  // 使用数字距离和一种类型的tie_breaker
+  // 娴ｈ法鏁ら弫鏉跨摟鐠烘繄顬囬崪灞肩缁夊秶琚崹瀣畱tie_breaker
   double heu;
   double tie_breaker;
   tie_breaker = 1.0 + 1.0 / 10000.0;
-  heu = tie_breaker * (node1->coord - node2->coord).norm();
+  heu = tie_breaker * heuristic_weight_ * (node1->coord - node2->coord).norm();
   return heu;
 }
 
-
 bool Astarpath::AstarSearch(Vector3d start_pt, Vector3d end_pt) {
+  cache_path_valid_ = false;
+  cached_path_.clear();
+  double base_weight = heuristic_weight_;
+
+  if (use_ara_star_) {
+    bool found = false;
+    double best_cost = inf;
+    vector<Vector3d> best_path;
+    double w = max(1.0, ara_init_weight_);
+    for (int iter = 0; iter < ara_max_iter_ && w >= 1.0; ++iter) {
+      heuristic_weight_ = w;
+      if (AstarSearchSingle(start_pt, end_pt)) {
+        vector<Vector3d> path = getPath();
+        double cost = terminatePtr ? terminatePtr->g_score : inf;
+        if (cost < best_cost) {
+          best_cost = cost;
+          best_path = path;
+          found = true;
+        }
+      }
+      resetUsedGrids();
+      w = max(1.0, w - ara_step_);
+    }
+    heuristic_weight_ = base_weight;
+    if (found) {
+      cached_path_ = best_path;
+      cache_path_valid_ = true;
+      return true;
+    }
+    heuristic_weight_ = max(1.0, base_weight);
+    if (AstarSearchSingle(start_pt, end_pt)) {
+      cached_path_ = getPath();
+      cache_path_valid_ = true;
+      heuristic_weight_ = base_weight;
+      return true;
+    }
+    heuristic_weight_ = base_weight;
+    return false;
+  }
+
+  heuristic_weight_ = max(1.0, heuristic_weight_);
+  bool ok = AstarSearchSingle(start_pt, end_pt);
+  heuristic_weight_ = base_weight;
+  return ok;
+}
+
+
+bool Astarpath::AstarSearchSingle(Vector3d start_pt, Vector3d end_pt) {
   ros::Time time_1 = ros::Time::now();
 
-  // start_point 和 end_point 索引
+  auto line_of_sight = [&](const Vector3d &a, const Vector3d &b) {
+    Vector3d diff = b - a;
+    double dist = diff.norm();
+    if (dist < 1e-6)
+      return true;
+    double step = los_step_;
+    if (step <= 0.0)
+      step = max(0.05, resolution * 0.5);
+    Vector3d dir = diff / dist;
+    int steps = static_cast<int>(dist / step);
+    Vector3d p = a;
+    for (int i = 0; i <= steps; ++i) {
+      if (isOccupied(coord2gridIndex(p)))
+        return false;
+      p += dir * step;
+    }
+    return true;
+  };
+
+  auto edge_cost = [&](const Vector3d &a, const Vector3d &b) {
+    Vector3d diff = a - b;
+    double base_cost = diff.norm();
+    double z_penalty = theta_rewire_z_penalty_ * abs(diff(2));
+    return base_cost + z_penalty;
+  };
+
+  // start_point 閸?end_point 缁便垹绱?
   Vector3i start_idx = coord2gridIndex(start_pt);
   Vector3i end_idx = coord2gridIndex(end_pt);
   goalIdx = end_idx;
 
-  //start_point 和 end_point 的位置
+  //start_point 閸?end_point 閻ㄥ嫪缍呯純?
   start_pt = gridIndex2coord(start_idx);
   end_pt = gridIndex2coord(end_idx);
 
-  // 初始化 struct MappingNode 的指针，分别代表 start node 和 goal node
+  // 閸掓繂顫愰崠?struct MappingNode 閻ㄥ嫭瀵氶柦鍫礉閸掑棗鍩嗘禒锝堛€?start node 閸?goal node
   // 
   MappingNodePtr startPtr = new MappingNode(start_idx, start_pt);
   MappingNodePtr endPtr = new MappingNode(end_idx, end_pt);
 
-  // Openset 是通过 STL 库中的 multimap 实现的open_list
+  // Openset 閺勵垶鈧俺绻?STL 鎼存挷鑵戦惃?multimap 鐎圭偟骞囬惃鍒紁en_list
   Openset.clear();
-  // currentPtr 表示 open_list 中 f（n） 最低的节点
+  // currentPtr 鐞涖劎銇?open_list 娑?f閿涘潱閿?閺堚偓娴ｅ海娈戦懞鍌滃仯
   MappingNodePtr currentPtr = NULL;
   MappingNodePtr neighborPtr = NULL;
 
-  // 将 Start 节点放在 Open Set 中
+  // 鐏?Start 閼哄倻鍋ｉ弨鎯ф躬 Open Set 娑?
   startPtr->g_score = 0;
   /**
    *
-   * STEP 1.1:  完成 Astarpath::getHeu
+   * STEP 1.1:  鐎瑰本鍨?Astarpath::getHeu
    *
    * **/
   startPtr->f_score = getHeu(startPtr, endPtr);
@@ -258,21 +384,45 @@ bool Astarpath::AstarSearch(Vector3d start_pt, Vector3d end_pt) {
 
   /**
    *
-   * STEP 1.2:  完成循环
+   * STEP 1.2:  鐎瑰本鍨氬顏嗗箚
    *
    * **/
 
   while (!Openset.empty()) {
-    //1.弹出g+h最小的节点
+    //1.瀵懓鍤璯+h閺堚偓鐏忓繒娈戦懞鍌滃仯
         currentPtr = Openset.begin()->second;
     Openset.erase(Openset.begin());
-    //2.判断是否是终点
+    if (use_lazy_theta_ && currentPtr->Father &&
+        !line_of_sight(currentPtr->Father->coord, currentPtr->coord)) {
+      MappingNodePtr best_parent = NULL;
+      double best_g = inf;
+      vector<MappingNodePtr> lazy_neighbors;
+      vector<double> lazy_costs;
+      AstarGetSucc(currentPtr, lazy_neighbors, lazy_costs);
+      for (unsigned int k = 0; k < lazy_neighbors.size(); k++) {
+        MappingNodePtr nb = lazy_neighbors[k];
+        if (nb->id != -1)
+          continue;
+        if (!line_of_sight(nb->coord, currentPtr->coord))
+          continue;
+        double g_through = nb->g_score + edge_cost(currentPtr->coord, nb->coord);
+        if (g_through < best_g) {
+          best_g = g_through;
+          best_parent = nb;
+        }
+      }
+      if (best_parent) {
+        currentPtr->Father = best_parent;
+        currentPtr->g_score = best_g;
+      }
+    }
+    //2.閸掋倖鏌囬弰顖氭儊閺勵垳绮撻悙?
         if (currentPtr->index == goalIdx)
     {
       terminatePtr = currentPtr;
       return true;
     }
-    //3.拓展当前节点
+    //3.閹锋挸鐫嶈ぐ鎾冲閼哄倻鍋?
         currentPtr->id = -1;
     AstarGetSucc(currentPtr, neighborPtrSets, edgeCostSets);
     for(unsigned int i=0;i<neighborPtrSets.size();i++)
@@ -282,17 +432,28 @@ bool Astarpath::AstarSearch(Vector3d start_pt, Vector3d end_pt) {
       {
          continue;
       }
-      tentative_g_score=currentPtr->g_score+edgeCostSets[i];
-      neighborPtr=neighborPtrSets[i];
+            tentative_g_score = currentPtr->g_score + edgeCostSets[i];
+      MappingNodePtr best_parent = currentPtr;
+      neighborPtr = neighborPtrSets[i];
+      if (use_theta_star_ && !use_lazy_theta_ && currentPtr->Father &&
+          line_of_sight(currentPtr->Father->coord, neighborPtr->coord)) {
+        double g_through_parent =
+            currentPtr->Father->g_score +
+            edge_cost(neighborPtr->coord, currentPtr->Father->coord);
+        if (g_through_parent < tentative_g_score) {
+          tentative_g_score = g_through_parent;
+          best_parent = currentPtr->Father;
+        }
+      }
       if(isOccupied(neighborPtr->index))
       continue;
       if(neighborPtr->id==0)
       {
-        //4.填写信息，完成更新
+        //4.婵夘偄鍟撴穱鈩冧紖閿涘苯鐣幋鎰纯閺?
                 neighborPtr->id = 1;
         neighborPtr->g_score = tentative_g_score;
         neighborPtr->f_score = tentative_g_score + getHeu(neighborPtr, endPtr);
-        neighborPtr->Father = currentPtr;
+        neighborPtr->Father = best_parent;
         neighborPtr->nodeMapIt =
           Openset.insert(make_pair(neighborPtr->f_score, neighborPtr));
         continue;
@@ -301,7 +462,7 @@ bool Astarpath::AstarSearch(Vector3d start_pt, Vector3d end_pt) {
       {
                 if(neighborPtr->g_score > tentative_g_score){
           neighborPtr->g_score = tentative_g_score;
-          neighborPtr->Father = currentPtr;
+          neighborPtr->Father = best_parent;
           neighborPtr->f_score = tentative_g_score + getHeu(neighborPtr, endPtr);
           Openset.erase(neighborPtr->nodeMapIt);
           neighborPtr->nodeMapIt =
@@ -321,16 +482,19 @@ bool Astarpath::AstarSearch(Vector3d start_pt, Vector3d end_pt) {
 
 
 vector<Vector3d> Astarpath::getPath() {
+  if (cache_path_valid_)
+    return cached_path_;
   vector<Vector3d> path;
   vector<MappingNodePtr> front_path;
-  while (terminatePtr != NULL) {
-    terminatePtr->coord = gridIndex2coord(terminatePtr->index);
-    front_path.push_back(terminatePtr);
-    terminatePtr = terminatePtr->Father;
+  MappingNodePtr ptr = terminatePtr;
+  while (ptr != NULL) {
+    ptr->coord = gridIndex2coord(ptr->index);
+    front_path.push_back(ptr);
+    ptr = ptr->Father;
   }
   /**
    *
-   * STEP 1.3:  追溯找到的路径
+   * STEP 1.3:  鏉╄姤鍑介幍鎯у煂閻ㄥ嫯鐭惧?
    *
    * **/
 
@@ -349,7 +513,7 @@ std::vector<Vector3d> Astarpath::pathSimplify(const vector<Vector3d> &path,
   double dmax=0,d;
   int index=0;
   int end = path.size();
-  //1.计算距离首尾连成直线最大的点，并将点集从此处分开
+  //1.鐠侊紕鐣荤捄婵堫瀲妫ｆ牕鐔潻鐐村灇閻╁鍤庨張鈧径褏娈戦悙鐧哥礉楠炶泛鐨㈤悙褰掓肠娴犲孩顒濇径鍕瀻瀵偓
   for(int i=1;i<end-1;i++)
   {
     d=perpendicularDistance(path[i],path[0],path[end-1]);
@@ -370,7 +534,7 @@ std::vector<Vector3d> Astarpath::pathSimplify(const vector<Vector3d> &path,
     subPath2.push_back(path[j]);
     j++;
   }
-  //2.拆分点集
+  //2.閹峰棗鍨庨悙褰掓肠
   vector<Vector3d> recPath1;
   vector<Vector3d> recPath2;
   vector<Vector3d> resultPath;

@@ -1,0 +1,6 @@
+variant_G14_s80_t100_a25
+variant_G14_s70_t100_a25
+variant_G14_s80_t110_a25
+variant_G14_s70_t110_a25
+variant_G14_s80_t100_a35
+variant_G14_s70_t110_a35

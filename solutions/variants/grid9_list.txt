@@ -1,0 +1,12 @@
+variant_G9_r25_p150_s10
+variant_G9_r25_p150_s20
+variant_G9_r25_p200_s10
+variant_G9_r25_p200_s20
+variant_G9_r30_p150_s10
+variant_G9_r30_p150_s20
+variant_G9_r30_p200_s10
+variant_G9_r30_p200_s20
+variant_G9_r35_p150_s10
+variant_G9_r35_p150_s20
+variant_G9_r35_p200_s10
+variant_G9_r35_p200_s20
