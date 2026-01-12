@@ -7,7 +7,18 @@ def calculate_rmse_and_more():
     time_stamps2 = []
     length_increments = []
 
-    with open("/home/user/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/control_data.txt", "r") as file:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    control_data_path = os.path.join(
+        base_dir, 'src', 'quadrotor_simulator', 'so3_control', 'src', 'control_data.txt'
+    )
+    control_timedata_path = os.path.join(
+        base_dir, 'src', 'quadrotor_simulator', 'so3_control', 'src', 'control_timedata.txt'
+    )
+    issafe_path = os.path.join(
+        base_dir, 'src', 'quadrotor_simulator', 'so3_control', 'src', 'issafe.txt'
+    )
+
+    with open(control_data_path, "r") as file:
         lines = file.readlines()
         for i, line in enumerate(lines):
             data = line.strip().split()
@@ -33,7 +44,7 @@ def calculate_rmse_and_more():
     if des_pos_array.shape!= pos_array.shape:
         raise ValueError("期望位置数据和实际位置数据的形状不一致。")
     
-    with open("/home/user/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/control_timedata.txt", "r") as file:
+    with open(control_timedata_path, "r") as file:
         lines = file.readlines()
         for i, line in enumerate(lines):
             datatime = line.strip().split()
@@ -54,13 +65,12 @@ def calculate_rmse_and_more():
     total_length = np.sum(length_increments_array)
 
     # 检查是否发生了碰撞
-    additional_score = check_additional_file()
+    additional_score = check_additional_file(issafe_path)
 
     overall_score = 200. * rmse + 1./5. * total_time + 1./5. * total_length + 40. * additional_score
     
     return rmse, total_time, total_length, additional_score, overall_score
-def check_additional_file():
-    file_path = "/home/user/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/issafe.txt"  # 替换为实际的文件路径
+def check_additional_file(file_path):
     try:
         with open(file_path, "r") as file:
             content = file.read().strip()

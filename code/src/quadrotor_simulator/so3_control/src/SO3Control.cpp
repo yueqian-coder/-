@@ -2,6 +2,18 @@
 #include <so3_control/SO3Control.h>
 
 #include <ros/ros.h>
+#include <ros/package.h>
+#include <string>
+
+namespace {
+std::string resolveDataPath(const std::string &filename) {
+  const std::string pkg_path = ros::package::getPath("so3_control");
+  if (!pkg_path.empty()) {
+    return pkg_path + "/src/" + filename;
+  }
+  return filename;
+}
+}  // namespace
 
 SO3Control::SO3Control()
   : mass_(0.5)
@@ -49,7 +61,7 @@ SO3Control::calculateControl(const Eigen::Vector3d& des_pos,
   ros::Time currentTime = ros::Time::now();
   // recorderr(currentTime, des_pos, pos_);
   if(!dataFile.is_open()){
-    dataFile.open("/home/stuwork/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/control_data.txt", std::ios::out|std::ios::trunc);
+    dataFile.open(resolveDataPath("control_data.txt"), std::ios::out|std::ios::trunc);
   }
 
   dataFile << currentTime << " ";
@@ -59,7 +71,7 @@ SO3Control::calculateControl(const Eigen::Vector3d& des_pos,
   if((pos_-Eigen::Vector3d(10.0, -4.0, 0.0)).norm() <= 2.0){
   if(!dataFile_time.is_open())
   {
-    dataFile_time.open("/home/stuwork/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/control_timedata.txt", std::ios::out|std::ios::trunc);
+    dataFile_time.open(resolveDataPath("control_timedata.txt"), std::ios::out|std::ios::trunc);
     dataFile_time << currentTime << " ";
   }
 

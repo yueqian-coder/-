@@ -54,6 +54,7 @@ find_package(catkin REQUIRED COMPONENTS
   quadrotor_msgs
   tf
   nodelet
+  roslib
 )
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 ## System dependencies are found with CMake's conventions

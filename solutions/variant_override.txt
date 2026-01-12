@@ -1,14 +1,20 @@
-# grid1 z/los/time
+# aggressive time+path tuning
 search_mode=theta_star
 heuristic_weight=1.5
 ara_init_weight=1.6
 ara_step=0.2
 ara_max_iter=3
-z_penalty=0.1
+z_penalty=0.05
 theta_rewire_z_penalty=0.0
-time_vel_scale=1.15
-time_acc_scale=1.05
-time_global_scale=0.92
-path_simplify_scale=1.0
-shortcut_passes=1
-los_step=0.1
+time_vel_scale=1.65
+time_acc_scale=1.35
+time_global_scale=0.78
+path_simplify_scale=1.5
+shortcut_passes=10
+use_los_shortest=1
+los_step=0.2
+occ_inflate_level=0
+use_raw_occ=0
+straight_time_scale=0.9
+turn_time_scale=0.75
+turn_angle_deg=35.0

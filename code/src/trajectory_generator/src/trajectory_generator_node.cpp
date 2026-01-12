@@ -15,6 +15,7 @@
 #include <random>
 #include <ros/console.h>
 #include <ros/ros.h>
+#include <ros/package.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <string>
 #include <visualization_msgs/Marker.h>
@@ -431,7 +432,11 @@ void issafe(const ros::TimerEvent &e){
       ROS_WARN("now place is in obstacle, the drone has cracked!!!");
       cracked = true;
       if(!dataFiles.is_open()){
-        dataFiles.open("/home/user/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/issafe.txt", std::ios::out|std::ios::trunc);
+        const std::string so3_path = ros::package::getPath("so3_control");
+        const std::string safe_path = so3_path.empty()
+                                         ? std::string("issafe.txt")
+                                         : (so3_path + "/src/issafe.txt");
+        dataFiles.open(safe_path, std::ios::out|std::ios::trunc);
       }
       dataFiles << 1;
       dataFiles.flush();
@@ -877,7 +882,10 @@ int main(int argc, char **argv) {
   time_Count=0;
   target_Count = 0;
   
-  std::string issafe_path = "/home/user/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/issafe.txt";
+  const std::string so3_path = ros::package::getPath("so3_control");
+  const std::string issafe_path = so3_path.empty()
+                                     ? std::string("issafe.txt")
+                                     : (so3_path + "/src/issafe.txt");
   std::ofstream clear_file(issafe_path, std::ios::out | std::ios::trunc);
   clear_file.close();
 

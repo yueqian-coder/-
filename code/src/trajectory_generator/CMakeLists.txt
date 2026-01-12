@@ -25,6 +25,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   visualization_msgs
   quadrotor_msgs
+  roslib
 )
 catkin_package()
 
